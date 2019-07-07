@@ -21,6 +21,8 @@
 #define BACKLIGHT_PIN 3
 #define startButton 6
 #define stopButton 7
+//#define automatic_stop
+#define automatic_start
 //LiquidCrystal_I2C lcd(0x27, 20, 4,);  // set the LCD address to 0x27 for a 16 chars and 2 line display
 LiquidCrystal_I2C lcd(0x27,2,1,0,4,5,6,7,3, POSITIVE);
 SoftwareSerial HC12(3, 4); // Arduino RX, TX  HC12(TX,RX)
@@ -29,6 +31,8 @@ enum states {state0,state1,state2,state3,state4};
 int State = 0;
 static long unsigned int time = 0;
 static long unsigned int currentTime = 0;
+static long unsigned int waitTime = 0;
+static long unsigned int countDown = 0;
 const byte numChars = 40;
 char receivedChars[numChars];
 boolean newData = false;
@@ -104,19 +108,39 @@ void loop() {
 		Serial.println("state 0");
 		readyForStart();
 		State = states::state1;
+		countDown = millis();
 		break; 
 		}
 	case state1: {
+		
+		static int cntDown = 0;
 		if ((digitalRead(startButton) == LOW) || (start==true)) {
 		Serial.println("Got a start signal");
 		State = states::state2;
 		start = false;
+		cntDown = 0;
 		}
+#ifdef automatic_start
+		if (millis() - countDown > 1000) {
+			cntDown++;
+			Serial.println(cntDown);
+			displayCountDown(cntDown);
+			if (cntDown > 29)
+			{
+				cntDown = 0;
+				Serial.println("Timeout on start");
+				State = states::state2;
+				start = false;
+			}
+			countDown = millis();
+		}
+#endif // automatic_start
 		break;
 		}
 	case state2: displayTime(); startTime(); State = states::state3; tone(9, 50); delay(150);
 		noTone(9); break;
 	case state3: {
+		updateDisplayTime();
 		if ((digitalRead(stopButton) == LOW) || (stop == true)) {
 			Serial.println("Got a stop signal");
 			State = states::state4;
@@ -127,15 +151,17 @@ void loop() {
 			tone(9, 50);
 			delay(150);
 			noTone(9);
+			waitTime = millis();
 		}
 
 
-		updateDisplayTime(); 
+		
 		break;
 	}
 	case state4: {
 		finalTime();
 		static bool waitforhigh = false;
+		static int cnt = 0;
 	
 		if (digitalRead(stopButton) == HIGH)
 			waitforhigh = true;
@@ -149,12 +175,43 @@ void loop() {
 				stop = false;
 
 			}
+#ifdef automatic_stop
+
+
+
+			if (millis() - waitTime > 1000) {
+				cnt++;
+				Serial.println(cnt);
+				if (cnt == 30) {
+					cnt = 0;
+					waitTime = 0;
+					Serial.println("TimeOut");
+					State = states::state0;
+					waitforhigh = false;
+					stop = false;
+
+				}
+				waitTime = millis();
+			}
+#endif // automatic_stop
+
 		}
 		break;
 	}
+				 
 	}
 }
 
+void displayCountDown(int cnt) {
+	lcd.setCursor(6, 1);
+	lcd.print("Tid :: ");
+	lcd.setCursor(13, 1);
+	if (30 - cnt < 10)
+		lcd.print("0");
+	
+		
+	lcd.print(30-cnt,DEC);
+}
 
 
 void initDisplay() {
@@ -224,7 +281,7 @@ void readRadio() {
 				Serial.println(start);
 			}
 			else {
-				Serial.print("Ignore start signal");
+				//Serial.print("Ignore start signal");
 				
 			}
 		}
@@ -237,7 +294,7 @@ void readRadio() {
 				Serial.println(stop);
 			}
 			else {
-				Serial.print("Ignore stop signal");
+				//Serial.print("Ignore stop signal");
 			}
 		}
 	}
@@ -250,8 +307,9 @@ void recvWithStartEndMarkers() {
 	char startMarker = '<';
 	char endMarker = '>';
 	char rc;
-
+	
 	while (HC12.available() > 0 && newData == false) {
+		
 		rc = HC12.read();
 		if (recvInProgress == true) {
 			if (rc != endMarker) {
