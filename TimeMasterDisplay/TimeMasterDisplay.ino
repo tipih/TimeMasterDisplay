@@ -76,6 +76,7 @@ const byte numChars = 40;
 unsigned int num_of_errors = 0;
 unsigned int cntDownTime = 45;
 unsigned int maxTime = 999;
+unsigned int timeError = 0;
 char receivedChars[numChars];
 boolean newData = false;
 boolean start = false;
@@ -111,12 +112,21 @@ void startTime() {
 //*****************************************************************************************************************
 //TIMER UPDATE
 void updateDisplayTime() {
+	int timeDiff = 0;
+
+
 	currentTime = millis() - timer;
 	
 	int mili = currentTime % 100;
-	//Serial.println(mili);
+	
 
-
+	timeDiff =  (currentTime/ 1000)-maxTime;
+	
+	if (timeDiff > 0) {
+		timeError = (timeDiff / 4);
+		
+	}
+	
 
 	
 	digit = int((currentTime / 100)) % 10;
@@ -128,10 +138,17 @@ void updateDisplayTime() {
 	int maxDigit2  = int((maxTime/10)) % 10;
 	int maxDigit3 = int((maxTime/100)) % 10;
 
+	int errorDigit1 = int((timeError)) % 10;
+	int errorDigit2 = int((timeError / 10)) % 10;
+	
 
 	//if (mili < 10)
 	//	lcd.setCursor(13, 3);
 	//else
+	lcd.setCursor(11, 1);
+	lcd.print(errorDigit2, DEC);
+	lcd.print(errorDigit1, DEC);
+	
 	lcd.setCursor(6, 2);
 	lcd.print(num_of_errors, DEC);
 	
@@ -388,6 +405,7 @@ void loop() {
 		{ 
 		Serial.println("state 0");
 		num_of_errors = 0;
+		timeError = 0;
 		readyForStart();
 		State = states::state1;
 		countDown = millis();
@@ -548,8 +566,9 @@ void displayTime() {
 	lcd.clear();
 	lcd.setCursor(5, 0);
 	lcd.print("Tid korer");
-	lcd.setCursor(2, 1);
-	lcd.print("Venter paa stop");
+	lcd.setCursor(0, 1);
+	lcd.print("Tidsfejl = ");
+	lcd.print(timeError, DEC);
 	lcd.setCursor(0, 2);
 	lcd.print("Fejl = ");
 	lcd.setCursor(10, 2);
