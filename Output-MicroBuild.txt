@@ -1,0 +1,6 @@
+﻿Compiling 'TimeMasterDisplay' for 'Arduino/Genuino Uno'
+Program size: 8.726 bytes (used 27% of a 32.256 byte maximum) (1,33 secs)
+Minimum Memory Usage: 949 bytes (46% of a 2048 byte maximum)
+ 
+Uploading 'TimeMasterDisplay' to 'Arduino/Genuino Uno' using 'COM20'
+	The upload process has finished.
