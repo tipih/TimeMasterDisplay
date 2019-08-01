@@ -4,6 +4,8 @@
  Author:	michael
 */
 
+
+/*HC12 Radio not used*/
 //HC12 Radio config
 //9600
 //FU3
@@ -25,6 +27,8 @@
 #define NUM_LEDS 49
 #define NUM_STRIPS 4
 
+
+//Strip 2 for handling mode, might change to 5 to get 2 more ports
 #define NUM_LEDS1 3
 #define DATA_PIN 11
 
@@ -33,9 +37,11 @@ RH_RF69 rf69;
 
 
 
-
+//LED strips arrays
 CRGB strip[(NUM_LEDS*NUM_STRIPS)];
 CRGB leds[NUM_LEDS1];
+CLEDController *modeLeds;
+
 static CRGB myColor = CRGB::Red;
 volatile static int digit, digit1, digit2, digit3;
 volatile static int lastdigit, lastdigit1, lastdigit2, lastdigit3;
@@ -43,6 +49,7 @@ unsigned long oldTimer, startTime1;
 boolean receiveComplete = false;		//Flag to get all data
 
 //Globale defines goes here
+//Pin difinitions
 #define BACKLIGHT_PIN 3
 #define startButton 6
 #define stopButton 7
@@ -57,8 +64,9 @@ LiquidCrystal_I2C lcd(0x27,2,1,0,4,5,6,7,3, POSITIVE);
 //SoftwareSerial HC12(3, 4); // Arduino RX, TX  HC12(TX,RX)
 
 // the setup function runs once when you press reset or power the board
-enum states {state0,state1,state2,state3,state4};
-enum modes {mode0,mode1,mode2,mode3};
+//Enums to handle state mashines
+enum states {state0,state1,state2,state3,state4};	//We need more stated to handle 2 more ports, but for now it is ok
+enum modes {mode0,mode1,mode2,mode3};				//Mode forhandling automatic start and stop
 int State = 0;
 static long unsigned int timer = 0;
 static long unsigned int currentTime = 0;
@@ -150,8 +158,11 @@ void updateDisplayTime() {
 	FastLED.show();
 	delay(4);
 }
+//*****************************************************************************************************************
 
 
+//*****************************************************************************************************************
+//Inittilize the LED display
 void initLed() {
 	// Turn the LED on, then pause
 
@@ -192,19 +203,22 @@ void initLed() {
 
 
 }
+//*****************************************************************************************************************
 
-
+//*****************************************************************************************************************
+//Setup for all the Hardware
 void setup() {
 	FastLED.addLeds<WS2811_PORTA, NUM_STRIPS, GRB>(strip, NUM_LEDS);
 	Serial.begin(115200);
 
 
-	FastLED.addLeds<WS2811, DATA_PIN, GRB>(leds, NUM_LEDS1);
+	modeLeds= &FastLED.addLeds<WS2811, DATA_PIN, GRB>(leds, NUM_LEDS1);
 	leds[0] = CRGB::Red;
 	leds[1] = CRGB::Red;
 	leds[2] = CRGB::Red;
 
-	FastLED.show();
+	modeLeds->showLeds(100);
+	
 	delay(500);
 	if (!rf69.init())
 		while (true)
@@ -220,7 +234,7 @@ void setup() {
 			delay(500);
 		}
 
-	// Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM (for low power module)
+// Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM (for low power module)
 // No encryption
 	if (!rf69.setFrequency(868.0))
 		Serial.println("setFrequency failed");
@@ -241,7 +255,7 @@ void setup() {
 	State = states::state0;
 	automatic_start = mode0;
 }
-
+//*****************************************************************************************************************
 
 
 void checkBtn() {
