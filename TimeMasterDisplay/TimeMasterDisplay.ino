@@ -65,13 +65,14 @@ LiquidCrystal_I2C lcd(0x27,2,1,0,4,5,6,7,3, POSITIVE);
 
 // the setup function runs once when you press reset or power the board
 //Enums to handle state mashines
-enum states {state0,state1,state2,state3,state4};	//We need more stated to handle 2 more ports, but for now it is ok
+enum states {state00,state0,state1,state2,state3,state4};	//We need more stated to handle 2 more ports, but for now it is ok
 enum modes {mode0,mode1,mode2,mode3};				//Mode forhandling automatic start and stop
 int State = 0;
 static long unsigned int timer = 0;
 static long unsigned int currentTime = 0;
 static long unsigned int waitTime = 0;
 static long unsigned int countDown = 0;
+static bool update_display_once = false;
 const byte numChars = 40;
 unsigned int num_of_errors = 0;
 unsigned int cntDownTime = 45;
@@ -267,10 +268,11 @@ void setup() {
 	lcd.begin(20, 4);
 	initDisplay();
 	delay(2000);
-	readyForStart();
-	delay(2000);
-	State = states::state0;
+	
+	State = states::state00;
 	automatic_start = mode0;
+	update_display_once = false;
+	stop = false;
 }
 //*****************************************************************************************************************
 
@@ -380,6 +382,8 @@ void checkBtn() {
 				
 				
 				FastLED.show();
+				State = states::state00;
+				update_display_once = false;
 			}
 		}
 
@@ -401,6 +405,43 @@ void loop() {
 	checkBtn();
 	switch (State)
 	{
+	case state00: {
+		
+		static bool waitforhigh = false;
+		static int cnt = 0;
+		
+
+		
+
+		
+		num_of_errors = 0;
+		timeError = 0;
+		if (update_display_once == false) {
+			systemReady();
+			update_display_once = true;
+			Serial.println("state 00");
+
+		}
+			
+		countDown = millis();
+
+		if (digitalRead(stopButton) == HIGH)
+			waitforhigh = true;
+
+		if ((waitforhigh == true) || (stop == true))
+		{
+
+			if ((digitalRead(stopButton) == LOW) || (stop == true)) {
+				Serial.println("Got a stop signal");
+				State = states::state0;
+				waitforhigh = false;
+				stop = false;
+
+			}
+		}
+		break;
+	}
+	
 	case state0: 
 		{ 
 		Serial.println("state 0");
@@ -447,6 +488,7 @@ void loop() {
 			stop = false;
 			tone(4, 800); 
 			waitTime = millis();
+			
 		}
 
 
@@ -454,10 +496,10 @@ void loop() {
 		break;
 	}
 	case state4: {
-		finalTime();
+		
 		static bool waitforhigh = false;
 		static int cnt = 0;
-	
+		finalTime();
 		if (digitalRead(stopButton) == HIGH)
 			waitforhigh = true;
 
@@ -548,6 +590,19 @@ void initDisplay() {
 	lcd.print("  Powered By Rahr");
 }
 
+void systemReady() {
+	lcd.clear();
+	lcd.setCursor(5, 0);
+	lcd.print("System klar");
+	lcd.setCursor(3, 1);
+	lcd.print("System mode=");
+	lcd.print(automatic_start, DEC);
+
+	lcd.setCursor(0, 2);
+	lcd.print("--------------------");
+	lcd.setCursor(3, 3);
+	lcd.print("Tryk paa STOP.");
+}
 void readyForStart() {
 	
 	lcd.clear();
@@ -582,10 +637,13 @@ void displayTime() {
 
 void finalTime()
 {
-	lcd.setCursor(5, 0);
-	lcd.print("Total tid");
-	lcd.setCursor(0, 1);
+	
+	lcd.setCursor(0, 0);
 	lcd.print("Tryk stop for ny tid");
+	lcd.setCursor(0, 1);
+	lcd.print("Tidsfejl = ");
+	lcd.setCursor(12, 1);
+	lcd.print(timeError, DEC);
 
 
 	if (int((currentTime / 10000)) < 10) {
@@ -621,8 +679,9 @@ void readRadio() {
 	recvWithStartEndMarkers();
 
 	if (newData == true) {
+		
 		newData = false;
-		if (strcmp(receivedChars, "START") == 0)
+		if (strcmp(receivedChars, "START1234") == 0)
 		{
 			if (State == states::state1) {
 				start = true;
@@ -630,7 +689,7 @@ void readRadio() {
 				Serial.println(start);
 			}
 			else {
-				//Serial.print("Ignore start signal");
+				Serial.print("Ignore start signal");
 				
 			}
 		}
@@ -650,12 +709,15 @@ void readRadio() {
 		{
 		leds[0]= CRGB::Green;
 		FastLED.show();
+		Serial.println("StartAlive");
 		}
 		else if (strcmp(receivedChars, "STOPALIVE") == 0)
 		{
 			leds[1] = CRGB::Green;
 			FastLED.show();
+			Serial.println("StopAlive");
 		}
+		
 	}
 }
 
@@ -669,12 +731,15 @@ void recvWithStartEndMarkers() {
 	
 	
 	//Serial.println("Check Radio");
+
+
+
 	if (rf69.available())
 	{
-
+		Serial.println("Data ready");
 		uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
 		uint8_t len = sizeof(buf);
-		for (int i = 0; i < numChars; i++)
+		for (int i = 0; i < numChars-1; i++)
 			receivedChars[i] = '\0';
 
 		if (rf69.recv(buf, &len))
@@ -702,7 +767,6 @@ void recvWithStartEndMarkers() {
 			newData = false;
 		}
 
-		
 		
 	}
 }
